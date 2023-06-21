@@ -40,7 +40,7 @@ def handler(event):
     registration_token = response.json()["token"]
 
     # Configure runner
-    cmd = f'echo {RUNNER_NAME} | ./actions-runner/config.sh --url https://github.com/{ORG} --token {registration_token}'
+    cmd = f'./actions-runner/config.sh --url https://github.com/{ORG} --token {registration_token} --name {RUNNER_NAME} --work _work --labels runpod'
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
@@ -59,6 +59,17 @@ def handler(event):
         print(f'Subprocess ended with an error: {start_stderr.decode()}')
     else:
         print(f'Subprocess output: {start_stdout.decode()}')
+
+    # Remove runner
+    remove_cmd = './actions-runner/config.sh remove --token {registration_token}'
+    remove_process = subprocess.Popen(
+        remove_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    remove_stdout, remove_stderr = remove_process.communicate()
+
+    if remove_process != 0:
+        print(f'Subprocess ended with an error: {remove_stderr.decode()}')
+    else:
+        print(f'Subprocess output: {remove_stdout.decode()}')
 
     return "Runner Exited"
 
