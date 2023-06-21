@@ -33,7 +33,8 @@ def handler(event):
     url = f"https://api.github.com/orgs/{ORG}/actions/runners/registration-token"
     response = requests.post(url, headers=headers, timeout=10)
 
-    if response.status_code != 200:
+    if response.status_code != 201:
+        print(f"Status code: {response.status_code}")
         raise Exception(f"Failed to get registration token: {response.text}")
 
     registration_token = response.json()["token"]
