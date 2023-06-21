@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 '''
 Starts a GitHub runner.
 '''
