@@ -1,21 +1,67 @@
 #!/usr/bin/env python
-''' Contains the handler function that will be called by the serverless. '''
+
+'''
+Starts a GitHub runner.
+'''
+
+import os
+import requests
+import subprocess
 
 import runpod
 
-# Load models into VRAM here so they can be warm between requests
+GITHUB_TOKEN = os.environ.get("GITHUB_PAT")
+ORG = os.environ.get("GITHUB_ORG", "runpod-workers")
+RUNNER_NAME = os.environ.get("RUNNER_NAME", "runpod-runner")
+
+
+if not GITHUB_TOKEN:
+    raise Exception("Missing GITHUB_PAT environment variable")
 
 
 def handler(event):
     '''
-    This is the handler function that will be called by the serverless.
+    - Obtains registration token from GitHub
+    - Starts a runner
     '''
-    print(event)
 
-    # do the things
+    # Get registration token
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "X-GitHub-Api-Version": "2022-11-28"
+    }
 
-    # return the output that you want to be returned like pre-signed URLs to output artifacts
-    return "Hello World"
+    url = f"https://api.github.com/orgs/{ORG}/actions/runners/registration-token"
+    response = requests.post(url, headers=headers, timeout=10)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to get registration token: {response.text}")
+
+    registration_token = response.json()["token"]
+
+    # Configure runner
+    cmd = f'echo {RUNNER_NAME} | ./config.sh --url https://github.com/{ORG} --token {registration_token}'
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+
+    if process.returncode != 0:
+        print(f'Subprocess ended with an error: {stderr.decode()}')
+    else:
+        print(f'Subprocess output: {stdout.decode()}')
+
+    # Start runner
+    start_cmd = './run.sh --once'
+    start_process = subprocess.Popen(
+        start_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    start_stdout, start_stderr = start_process.communicate()
+
+    if start_process != 0:
+        print(f'Subprocess ended with an error: {start_stderr.decode()}')
+    else:
+        print(f'Subprocess output: {start_stdout.decode()}')
+
+    return "Runner Exited"
 
 
-runpod.serverless.start({"handler": handler})
+runpod.serverless.start({"handler": handler, "refresh_worker": True})

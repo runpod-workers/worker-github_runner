@@ -1,0 +1,17 @@
+name: CI | Call Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  api_call:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send API Call
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: "https://ansible.io/api/v2/job_templates/84/launch/"
+          method: "POST"
+          customHeaders: '{"Content-Type": "application/json"}'
+          data: '{"key_1": "value_1", "key_2": "value_2"}'

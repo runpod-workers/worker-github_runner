@@ -1,5 +1,5 @@
 # Base image
-FROM runpod/pytorch:3.10-2.0.0-117
+FROM nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu20.04
 
 # Use bash shell with pipefail option
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 
 # Input GitHub runner version argument
-ARG RUNNER_VERSION
+ARG RUNNER_VERSION=2.305.0
 
 # Update and upgrade the system packages (Worker Template)
 RUN apt-get update && \
@@ -41,9 +41,5 @@ RUN /actions-runner/bin/installdependencies.sh
 # Add src files (Worker Template)
 ADD src .
 
-# Cleanup section (Worker Template)
-RUN apt-get autoremove -y && \
-    apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/*
 
 CMD python -u /handler.py
