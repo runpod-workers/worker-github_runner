@@ -40,7 +40,7 @@ def handler(event):
     registration_token = response.json()["token"]
 
     # Configure runner
-    cmd = f'echo {RUNNER_NAME} | ./config.sh --url https://github.com/{ORG} --token {registration_token}'
+    cmd = f'echo {RUNNER_NAME} | ./actions-runner/config.sh --url https://github.com/{ORG} --token {registration_token}'
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
@@ -50,7 +50,7 @@ def handler(event):
         print(f'Subprocess output: {stdout.decode()}')
 
     # Start runner
-    start_cmd = './run.sh --once'
+    start_cmd = './actions-runner/run.sh --once'
     start_process = subprocess.Popen(
         start_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     start_stdout, start_stderr = start_process.communicate()
