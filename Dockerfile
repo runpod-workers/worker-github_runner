@@ -16,7 +16,7 @@ ARG RUNNER_VERSION=2.305.0
 
 # Update and upgrade the system packages (Worker Template)
 RUN apt-get update && \
-    apt-get upgrade -y \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
     curl nodejs wget unzip vim git azure-cli jq build-essential libssl-dev libffi-dev python3 python3-venv python3-dev python3-pip && \
     apt-get clean && \
