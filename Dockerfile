@@ -42,4 +42,4 @@ RUN /actions-runner/bin/installdependencies.sh
 ADD src .
 
 
-CMD python -u /handler.py
+CMD python3 -u /handler.py
