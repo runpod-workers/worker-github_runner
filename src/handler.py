@@ -59,7 +59,6 @@ def handler(event):
     - Obtains registration token from GitHub
     - Starts a runner
     '''
-    token = get_token()
 
     # Configure runner
     config_cmd = f'./actions-runner/config.sh --url https://github.com/{ORG} --token {get_token()} --name {RUNNER_NAME} --work _work --labels runpod'
@@ -73,7 +72,7 @@ def handler(event):
     for var in unwated_env_vars:
         runner_env.pop(var, None)
 
-    runner_env['RUNPOD_JOB_INPUT'] = event['input']
+    runner_env['RUNPOD_JOB_INPUT'] = str(event['input'])
 
     # Start runner
     start_cmd = './actions-runner/run.sh --once'
