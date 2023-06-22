@@ -17,12 +17,7 @@ if not GITHUB_TOKEN:
     raise Exception("Missing GITHUB_PAT environment variable")
 
 
-def handler(event):
-    '''
-    - Obtains registration token from GitHub
-    - Starts a runner
-    '''
-
+def get_toekn():
     # Get registration token
     headers = {
         "Accept": "application/vnd.github+json",
@@ -39,8 +34,16 @@ def handler(event):
 
     registration_token = response.json()["token"]
 
+    return registration_token
+
+
+def handler(event):
+    '''
+    - Obtains registration token from GitHub
+    - Starts a runner
+    '''
     # Configure runner
-    cmd = f'./actions-runner/config.sh --url https://github.com/{ORG} --token {registration_token} --name {RUNNER_NAME} --work _work --labels runpod'
+    cmd = f'./actions-runner/config.sh --url https://github.com/{ORG} --token {get_toekn()} --name {RUNNER_NAME} --work _work --labels runpod'
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
@@ -61,7 +64,7 @@ def handler(event):
         print(f'Subprocess output: {start_stdout.decode()}')
 
     # Remove runner
-    remove_cmd = './actions-runner/config.sh remove --token {registration_token}'
+    remove_cmd = f'./actions-runner/config.sh remove --token {get_toekn()}'
     remove_process = subprocess.Popen(
         remove_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     remove_stdout, remove_stderr = remove_process.communicate()
