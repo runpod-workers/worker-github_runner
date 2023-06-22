@@ -11,9 +11,7 @@ import runpod
 GITHUB_TOKEN = os.environ.get("GITHUB_PAT")
 ORG = os.environ.get("GITHUB_ORG", "runpod-workers")
 
-
-POD_ID = os.environ.get("RUNPOD_POD_ID", None)
-RUNNER_NAME = os.environ.get(POD_ID, "serverless-runpod-runner")
+RUNNER_NAME = os.environ.get("RUNPOD_POD_ID", "serverless-runpod-runner")
 
 
 if not GITHUB_TOKEN:
