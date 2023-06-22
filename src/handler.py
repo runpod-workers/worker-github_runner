@@ -51,21 +51,25 @@ def handler(event):
     - Starts a runner
     '''
 
+    event_input = event.get('input')
+
     # Get PAT
-    if event.get('github_pat', None) is not None:
-        pat = event.get('github_pat')
-        event.pop('github_pat', None)
+    if event_input.get('github_pat', None) is not None:
+        pat = event_input.get('github_pat')
+        event_input.pop('github_pat', None)
     elif os.environ.get("GITHUB_PAT", None) is not None:
         pat = os.environ.get("GITHUB_PAT")
     else:
         raise Exception("Missing GitHub Personal Access Token")
 
     # Get ORG
-    if event.get('github_org', None) is not None:
-        org = event.get('github_org')
-        event.pop('github_org', None)
+    if event_input.get('github_org', None) is not None:
+        org = event_input.get('github_org')
+        event_input.pop('github_org', None)
     elif os.environ.get("GITHUB_ORG", None) is not None:
         org = os.environ.get("GITHUB_ORG")
+    else:
+        raise Exception("Missing GitHub Organization")
 
     # Configure runner
     config_cmd = f'./actions-runner/config.sh --url https://github.com/{org} --token {get_token(pat, org)} --name {RUNNER_NAME} --work _work --labels runpod'
@@ -79,7 +83,7 @@ def handler(event):
     for var in unwated_env_vars:
         runner_env.pop(var, None)
 
-    runner_env['JOB_INPUT'] = str(event['input'])
+    runner_env['JOB_INPUT'] = str(event_input)
 
     # Start runner
     start_cmd = './actions-runner/run.sh --once'
