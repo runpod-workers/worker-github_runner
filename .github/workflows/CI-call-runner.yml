@@ -11,7 +11,8 @@ jobs:
       - name: Send API Call
         uses: fjogeleit/http-request-action@v1
         with:
-          url: "https://ansible.io/api/v2/job_templates/84/launch/"
+          url: "https://api.runpod.ai/v2/ja1wwbebuah7t5/run"
           method: "POST"
           customHeaders: '{"Content-Type": "application/json"}'
+          bearerToken: ${{ secrets.RUNPOD_API_KEY }}
           data: '{"key_1": "value_1", "key_2": "value_2"}'
