@@ -8,29 +8,20 @@ import subprocess
 
 import runpod
 
-GITHUB_TOKEN = os.environ.get("GITHUB_PAT")
-ORG = os.environ.get("GITHUB_ORG", "runpod-workers")
-
 RUNNER_NAME = os.environ.get("RUNPOD_POD_ID", "serverless-runpod-runner")
 
-REQUIRED_ENV_VARS = ["GITHUB_PAT", "RUNPOD_POD_ID"]
 
-for var in REQUIRED_ENV_VARS:
-    if var not in os.environ:
-        raise Exception(f"Missing {var} environment variable")
-
-
-def get_token():
+def get_token(pat, org):
     '''
     - Obtains registration token from GitHub
     '''
     headers = {
         "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Authorization": f"Bearer {pat}",
         "X-GitHub-Api-Version": "2022-11-28"
     }
 
-    url = f"https://api.github.com/orgs/{ORG}/actions/runners/registration-token"
+    url = f"https://api.github.com/orgs/{org}/actions/runners/registration-token"
     response = requests.post(url, headers=headers, timeout=10)
 
     if response.status_code != 201:
@@ -60,8 +51,24 @@ def handler(event):
     - Starts a runner
     '''
 
+    # Get PAT
+    if event.get('github_pat', None) is not None:
+        pat = event.get('github_pat')
+        event.pop('github_pat', None)
+    elif os.environ.get("GITHUB_PAT", None) is not None:
+        pat = os.environ.get("GITHUB_PAT")
+    else:
+        raise Exception("Missing GitHub Personal Access Token")
+
+    # Get ORG
+    if event.get('github_org', None) is not None:
+        org = event.get('github_org')
+        event.pop('github_org', None)
+    elif os.environ.get("GITHUB_ORG", None) is not None:
+        org = os.environ.get("GITHUB_ORG")
+
     # Configure runner
-    config_cmd = f'./actions-runner/config.sh --url https://github.com/{ORG} --token {get_token()} --name {RUNNER_NAME} --work _work --labels runpod'
+    config_cmd = f'./actions-runner/config.sh --url https://github.com/{org} --token {get_token(pat, org)} --name {RUNNER_NAME} --work _work --labels runpod'
     run_command(config_cmd)
 
     # Remove unwanted environment variables
@@ -72,14 +79,14 @@ def handler(event):
     for var in unwated_env_vars:
         runner_env.pop(var, None)
 
-    runner_env['RUNPOD_JOB_INPUT'] = str(event['input'])
+    runner_env['JOB_INPUT'] = str(event['input'])
 
     # Start runner
     start_cmd = './actions-runner/run.sh --once'
     run_command(start_cmd, env=runner_env)
 
     # Remove runner
-    remove_cmd = f'./actions-runner/config.sh remove --token {get_token()}'
+    remove_cmd = f'./actions-runner/config.sh remove --token {get_token(pat, org)}'
     run_command(remove_cmd)
 
     return "Runner Exited"
