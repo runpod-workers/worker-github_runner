@@ -62,8 +62,7 @@ def handler(event):
     token = get_token()
 
     # Configure runner
-    config_cmd = ['./actions-runner/config.sh', '--url',
-                  f'https://github.com/{ORG}', '--token', token, '--name', RUNNER_NAME, '--work', '_work', '--labels', 'runpod']
+    config_cmd = f'./actions-runner/config.sh --url https://github.com/{ORG} --token {get_token()} --name {RUNNER_NAME} --work _work --labels runpod'
     run_command(config_cmd)
 
     # Remove unwanted environment variables
@@ -77,11 +76,11 @@ def handler(event):
     runner_env['RUNPOD_JOB_INPUT'] = event['input']
 
     # Start runner
-    start_cmd = ['./actions-runner/run.sh', '--once']
+    start_cmd = './actions-runner/run.sh --once'
     run_command(start_cmd, env=runner_env)
 
     # Remove runner
-    remove_cmd = ['./actions-runner/config.sh', 'remove', '--token', token]
+    remove_cmd = f'./actions-runner/config.sh remove --token {get_token()}'
     run_command(remove_cmd)
 
     return "Runner Exited"
