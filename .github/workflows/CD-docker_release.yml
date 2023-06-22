@@ -1,4 +1,4 @@
-name: Docker Image
+name: CD | Release to Docker Hub
 
 on:
   release:

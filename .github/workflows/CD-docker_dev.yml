@@ -1,4 +1,4 @@
-name: Docker Image
+name: CD | Dev Docker Image Build and Push
 
 on:
   push:
