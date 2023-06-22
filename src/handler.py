@@ -13,13 +13,17 @@ ORG = os.environ.get("GITHUB_ORG", "runpod-workers")
 
 RUNNER_NAME = os.environ.get("RUNPOD_POD_ID", "serverless-runpod-runner")
 
+REQUIRED_ENV_VARS = ["GITHUB_PAT", "RUNPOD_POD_ID"]
 
-if not GITHUB_TOKEN:
-    raise Exception("Missing GITHUB_PAT environment variable")
+for var in REQUIRED_ENV_VARS:
+    if var not in os.environ:
+        raise Exception(f"Missing {var} environment variable")
 
 
 def get_token():
-    # Get registration token
+    '''
+    - Obtains registration token from GitHub
+    '''
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -33,9 +37,21 @@ def get_token():
         print(f"Status code: {response.status_code}")
         raise Exception(f"Failed to get registration token: {response.text}")
 
-    registration_token = response.json()["token"]
+    return response.json()["token"]
 
-    return registration_token
+
+def run_command(cmd, env=None):
+    '''
+    - Runs a command with subprocess and handles errors
+    '''
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=env)
+    stdout, stderr = process.communicate()
+
+    if process.returncode != 0:
+        print(f'Subprocess ended with an error: {stderr.decode()}')
+    else:
+        print(f'Subprocess output: {stdout.decode()}')
 
 
 def handler(event):
@@ -43,15 +59,12 @@ def handler(event):
     - Obtains registration token from GitHub
     - Starts a runner
     '''
-    # Configure runner
-    cmd = f'./actions-runner/config.sh --url https://github.com/{ORG} --token {get_token()} --name {RUNNER_NAME} --work _work --labels runpod'
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
+    token = get_token()
 
-    if process.returncode != 0:
-        print(f'Subprocess ended with an error: {stderr.decode()}')
-    else:
-        print(f'Subprocess output: {stdout.decode()}')
+    # Configure runner
+    config_cmd = ['./actions-runner/config.sh', '--url',
+                  f'https://github.com/{ORG}', '--token', token, '--name', RUNNER_NAME, '--work', '_work', '--labels', 'runpod']
+    run_command(config_cmd)
 
     # Remove unwanted environment variables
     runner_env = dict(os.environ)
@@ -61,27 +74,15 @@ def handler(event):
     for var in unwated_env_vars:
         runner_env.pop(var, None)
 
-    # Start runner
-    start_cmd = './actions-runner/run.sh --once'
-    start_process = subprocess.Popen(
-        start_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=runner_env)
-    start_stdout, start_stderr = start_process.communicate()
+    runner_env['RUNPOD_JOB_INPUT'] = event['input']
 
-    if start_process != 0:
-        print(f'Subprocess ended with an error: {start_stderr.decode()}')
-    else:
-        print(f'Subprocess output: {start_stdout.decode()}')
+    # Start runner
+    start_cmd = ['./actions-runner/run.sh', '--once']
+    run_command(start_cmd, env=runner_env)
 
     # Remove runner
-    remove_cmd = f'./actions-runner/config.sh remove --token {get_token()}'
-    remove_process = subprocess.Popen(
-        remove_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    remove_stdout, remove_stderr = remove_process.communicate()
-
-    if remove_process != 0:
-        print(f'Subprocess ended with an error: {remove_stderr.decode()}')
-    else:
-        print(f'Subprocess output: {remove_stdout.decode()}')
+    remove_cmd = ['./actions-runner/config.sh', 'remove', '--token', token]
+    run_command(remove_cmd)
 
     return "Runner Exited"
 
