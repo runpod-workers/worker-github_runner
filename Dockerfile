@@ -11,14 +11,14 @@ WORKDIR /
 ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 
-# Input GitHub runner version argument
+# GitHub runner version argument
 ARG RUNNER_VERSION=2.305.0
 
 # Update and upgrade the system packages (Worker Template)
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-    curl nodejs wget unzip vim git azure-cli jq build-essential libssl-dev libffi-dev python3 python3-venv python3-dev python3-pip && \
+    curl libssl-dev libffi-dev openssh-server python3 python3-dev python3-pip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -40,6 +40,5 @@ RUN /actions-runner/bin/installdependencies.sh
 
 # Add src files (Worker Template)
 ADD src .
-
 
 CMD python3 -u /handler.py

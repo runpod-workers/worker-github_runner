@@ -1,5 +1,11 @@
 name: CI | Test Worker
 
+# Requires the following secrets:
+# - RUNPOD_ENDPOINT: The endpoint of the Runpod API
+# - RUNPOD_API_KEY: The API key to authenticate with the Runpod API
+# - GH_PAT: A GitHub Personal Access Token with access to the repository
+# - GH_ORG: The GitHub organization the repository is in
+
 on:
   push:
     branches:
