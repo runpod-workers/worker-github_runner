@@ -1,0 +1,3 @@
+name: "RunPod GitHub Runner"
+description: "Leverage RunPud GPUs for GitHub Actions"
+inputs:

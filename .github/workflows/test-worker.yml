@@ -1,6 +1,14 @@
 name: CI | Test Worker
 
 on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
   workflow_dispatch:
 
 jobs:
@@ -18,7 +26,7 @@ jobs:
           method: "POST"
           customHeaders: '{"Content-Type": "application/json"}'
           bearerToken: ${{ secrets.RUNPOD_API_KEY }}
-          data: '{"input":{"start": true}}'
+          data: '{"input":{"github_pat": "${{ secrets.GH_PAT }}", "github_org":"${{ secrets.GH_ORG }}"}}'
 
       - name: Extract Job ID
         id: extract_id
@@ -48,7 +56,7 @@ jobs:
           python src/handler.py --test_input='{"input": "test"}'
 
   terminate_worker:
-    if: ${{ cancelled() || failure() }}
+    if: ${{ always() && !success() }}
     needs: initialize_worker
     runs-on: ubuntu-latest
 
