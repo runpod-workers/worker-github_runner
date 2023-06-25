@@ -1,10 +1,11 @@
 name: CI | Test Worker
 
 # Requires the following secrets:
-# - RUNPOD_ENDPOINT: The endpoint of the Runpod API
 # - RUNPOD_API_KEY: The API key to authenticate with the Runpod API
 # - GH_PAT: A GitHub Personal Access Token with access to the repository
-# - GH_ORG: The GitHub organization the repository is in
+
+# Requires the following variables:
+# - RUNPOD_ENDPOINT: The endpoint of the Runpod API
 
 on:
   #   push:
@@ -28,11 +29,11 @@ jobs:
         id: deploy
         uses: fjogeleit/http-request-action@v1
         with:
-          url: "https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT }}/run"
+          url: "https://api.runpod.ai/v2/${{ vars.RUNPOD_ENDPOINT }}/run"
           method: "POST"
           customHeaders: '{"Content-Type": "application/json"}'
           bearerToken: ${{ secrets.RUNPOD_API_KEY }}
-          data: '{"input":{"github_pat": "${{ secrets.GH_PAT }}", "github_org":"${{ secrets.GH_ORG }}"}}'
+          data: '{"input":{"github_pat": "${{ secrets.GH_PAT }}", "github_org":"${{ github.repository_owner }}"}}'
 
       - name: Extract Job ID
         id: extract_id
@@ -71,7 +72,7 @@ jobs:
         id: get_status
         uses: fjogeleit/http-request-action@v1
         with:
-          url: "https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT }}/status/${{ needs.initialize_runner.outputs.id }}"
+          url: "https://api.runpod.ai/v2/${{ vars.RUNPOD_ENDPOINT }}/status/${{ needs.initialize_runner.outputs.id }}"
           method: "GET"
           customHeaders: '{"Content-Type": "application/json"}'
           bearerToken: ${{ secrets.RUNPOD_API_KEY }}
@@ -86,7 +87,7 @@ jobs:
         if: ${{ steps.parse_status.outputs.status != 'COMPLETED' }}
         uses: fjogeleit/http-request-action@v1
         with:
-          url: "https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT }}/cancel/${{ needs.initialize_runner.outputs.id }}"
+          url: "https://api.runpod.ai/v2/${{ vars.RUNPOD_ENDPOINT }}/cancel/${{ needs.initialize_runner.outputs.id }}"
           method: "POST"
           customHeaders: '{"Content-Type": "application/json"}'
           bearerToken: ${{ secrets.RUNPOD_API_KEY }}

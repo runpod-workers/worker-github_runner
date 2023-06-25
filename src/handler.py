@@ -72,7 +72,7 @@ def handler(event):
         raise Exception("Missing GitHub Organization")
 
     # Configure runner
-    config_cmd = f'./actions-runner/config.sh --url https://github.com/{org} --token {get_token(pat, org)} --name {RUNNER_NAME} --work _work --labels runpod'
+    config_cmd = f'./actions-runner/config.sh --url https://github.com/{org} --token {get_token(pat, org)} --name {RUNNER_NAME} --work _work --labels runpod,{RUNNER_NAME}'
     run_command(config_cmd)
 
     # Remove unwanted environment variables
