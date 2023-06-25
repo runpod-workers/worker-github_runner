@@ -62,8 +62,8 @@ jobs:
           python src/handler.py --test_input='{"input": "test"}'
 
   terminate_runner:
-    if: always() && !success()
-    needs: initialize_runner
+    if: always()
+    needs: [run_tests, initialize_runner]
     runs-on: ubuntu-latest
 
     steps:
