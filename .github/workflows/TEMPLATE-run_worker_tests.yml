@@ -7,18 +7,18 @@ name: CI | Test Worker
 # - GH_ORG: The GitHub organization the repository is in
 
 on:
-  push:
-    branches:
-      - main
+  #   push:
+  #     branches:
+  #       - main
 
-  pull_request:
-    branches:
-      - main
+  #   pull_request:
+  #     branches:
+  #       - main
 
   workflow_dispatch:
 
 jobs:
-  initialize_worker:
+  initialize_runner:
     runs-on: ubuntu-latest
     outputs:
       id: ${{ steps.extract_id.outputs.runpod_job_id }}
@@ -41,7 +41,7 @@ jobs:
           echo "::set-output name=runpod_job_id::$ID"
 
   run_tests:
-    needs: initialize_worker
+    needs: initialize_runner
     runs-on: runpod
 
     steps:
@@ -61,16 +61,32 @@ jobs:
         run: |
           python src/handler.py --test_input='{"input": "test"}'
 
-  terminate_worker:
-    if: ${{ always() && !success() }}
-    needs: initialize_worker
+  terminate_runner:
+    if: always() && !success()
+    needs: initialize_runner
     runs-on: ubuntu-latest
 
     steps:
-      - name: Shutdown Worker
+      - name: Get Job Status
+        id: get_status
         uses: fjogeleit/http-request-action@v1
         with:
-          url: "https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT }}/cancel/${{ needs.initialize_worker.outputs.id }}"
+          url: "https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT }}/status/${{ needs.initialize_runner.outputs.id }}"
+          method: "GET"
+          customHeaders: '{"Content-Type": "application/json"}'
+          bearerToken: ${{ secrets.RUNPOD_API_KEY }}
+
+      - name: Parse Status
+        id: parse_status
+        run: |
+          STATUS=$(echo '${{ steps.get_status.outputs.response }}' | jq -r '.status')
+          echo "::set-output name=status::$STATUS"
+
+      - name: Shutdown Worker
+        if: ${{ steps.parse_status.outputs.status != 'COMPLETED' }}
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: "https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT }}/cancel/${{ needs.initialize_runner.outputs.id }}"
           method: "POST"
           customHeaders: '{"Content-Type": "application/json"}'
           bearerToken: ${{ secrets.RUNPOD_API_KEY }}
