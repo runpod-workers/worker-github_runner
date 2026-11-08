@@ -1,0 +1,22 @@
+name: CI | test-image action
+
+on:
+  pull_request:
+    paths:
+      - "test-image/**"
+      - ".github/workflows/CI-test_image_action.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "test-image/**"
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Run unit tests
+        working-directory: test-image
+        run: uv run -p 3.12 --no-project --with pytest --with runpod==2.1.0 pytest -q tests

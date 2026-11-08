@@ -1,53 +1,60 @@
 # Documentation
 
-## CI/CD with GitHub Actions and Runpod
+## Testing a worker image in CI
 
-This repository uses GitHub Actions to run a series of tests on the Runpod serverless platform. The workflow is defined in the `.github/workflows/test-worker.yml` file, with the primary purpose to deploy a worker to the Runpod platform, execute the tests, and then terminate the worker.
+The `test-image` action runs a worker image's test cases on a temporary serverless endpoint and deletes the endpoint afterwards. Each run gets its own endpoint, so CI does not depend on a long-lived endpoint that can be paused for being idle.
 
-Here is a step-by-step breakdown of the `test-worker.yml` file:
+It uses Flash from runpod-python (`rp flash dev --once`):
 
-### Triggers
+1. The CLI creates a live endpoint from your image, with at most one worker.
+2. For each test in your tests file, it sends a job to that endpoint. On the worker, the job loads your handler file, captures the handler it registers with `runpod.serverless.start(...)`, and calls it with the test input.
+3. A test fails if the job fails, times out, returns no output, or returns a dict with an `error` key.
+4. The endpoint is deleted when the tests finish, fail, or the run is cancelled.
 
-This workflow runs whenever:
+### Usage
 
-- A push is made to the main branch.
-- A pull request is opened to the main branch.
-- The workflow is manually triggered (workflow_dispatch).
+Build and push the image first, then:
 
-### Jobs
+```yaml
+- uses: runpod-workers/worker-github_runner/test-image@main
+  with:
+    image: runpod/worker-example:ci-pr-${{ github.event.number }}
+    runpod-api-key: ${{ secrets.RUNPOD_API_KEY }}
+    handler: /handler.py
+```
 
-#### `initialize_worker`
+| Input | Default | Description |
+|---|---|---|
+| `image` | (required) | Worker image to test |
+| `runpod-api-key` | (required) | API key used to create and delete the endpoint |
+| `tests-file` | `.runpod/tests.json` | Hub-format tests file in your checkout |
+| `handler` | `/handler.py` | Path of the handler file inside the image |
+| `gpu` | `config.gpuTypeId` from the tests file | GPU type for the endpoint |
+| `startup-timeout` | `900` | Seconds allowed for the first worker to pull the image and start |
+| `runpod-version` | `2.1.0` | runpod-python version for the CLI and the worker |
+| `runtime-package-spec` | pinned `runpod-sdk-runtime` | Flash worker runtime installed into the image |
 
-This job deploys a worker to the Runpod platform. It:
+### Tests file
 
-- Sends a POST request to the Runpod API to start a new job (uses `fjogeleit/http-request-action@v1`).
-- Extracts the job ID from the response and sets it as a job output.
+The action reads the same format as the Hub:
 
-#### `run_tests`
+```json
+{
+  "tests": [
+    {"name": "basic", "input": {"prompt": "hello"}, "timeout": 10000}
+  ],
+  "config": {
+    "gpuTypeId": "NVIDIA GeForce RTX 4090",
+    "env": [{"key": "MODEL", "value": "base"}]
+  }
+}
+```
 
-This job runs the tests in the worker environment. It:
+`timeout` is in milliseconds. Entries in `config.env` are set on the endpoint.
 
-- Checks out the repository code.
-- Sets up Python 3.11 and installs dependencies.
-- Executes tests by running `handler.py` with a test input.
+### What can go wrong
 
-#### `terminate_worker`
-
-This job terminates the worker in the Runpod platform. It:
-
-- Sends a POST request to the Runpod API to cancel the job (uses `fjogeleit/http-request-action@v1`).
-
-It only runs if the previous job (`initialize_worker` or `run_tests`) was cancelled or failed.
-
-### Secrets
-
-The workflow requires the following secrets to be set in the repository settings:
-
-- `RUNPOD_API_KEY`: The API key to authenticate requests to the Runpod API.
-- `RUNPOD_ENDPOINT`: The endpoint of the Runpod API (not including the base URL).
-
-### Customizing the Workflow
-
-This workflow can be customized by editing the `.github/workflows/test-worker.yml` file. For example, to change the Python version, edit the `python-version` input in the `Set up Python 3.11 & install dependencies` step. To add or modify tests, edit the `Execute Tests` step.
-
-**Note:** Always ensure that the necessary permissions are granted when modifying GitHub workflows. It's also a good practice to validate your changes with a trusted colleague or through a pull request to prevent accidental disruptions to the workflow.
+- **The image's start command does not run.** A live endpoint starts the Flash runtime instead of the image's start command. The action calls your handler directly, so code that runs only in the start command (for example, a shell script that runs before `python handler.py`) is not exercised.
+- **The worker runs `runpod==<runpod-version>`.** The endpoint installs that version into the image before starting, even if the image pins another one. A handler that only works with an older SDK will fail here.
+- **The image needs Python 3.10 or newer**, with `pip`, so the runtime can be installed.
+- **Pull requests from forks** do not get repository secrets, so the action cannot create an endpoint for them. Skip the job for forks.

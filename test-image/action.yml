@@ -1,0 +1,69 @@
+name: "Test a Runpod worker image"
+description: >
+  Run a worker image's Hub test cases on a temporary Flash live endpoint,
+  then delete the endpoint.
+inputs:
+  image:
+    description: "Worker image to test, e.g. runpod/worker-faster_whisper:ci-pr-12"
+    required: true
+  runpod-api-key:
+    description: "Runpod API key used to create and delete the endpoint"
+    required: true
+  tests-file:
+    description: "Hub-format tests file in the caller's checkout"
+    required: false
+    default: ".runpod/tests.json"
+  handler:
+    description: "Path of the handler file inside the image"
+    required: false
+    default: "/handler.py"
+  gpu:
+    description: "GPU type; defaults to config.gpuTypeId in the tests file"
+    required: false
+    default: ""
+  startup-timeout:
+    description: "Seconds allowed for the first worker to pull the image and start"
+    required: false
+    default: "900"
+  runpod-version:
+    description: "runpod-python version used by the CLI and installed into the worker"
+    required: false
+    default: "2.1.0"
+  runtime-package-spec:
+    description: "pip spec of the Flash worker runtime installed into the image"
+    required: false
+    # runpod-sdk-runtime v0.2.0; not published to PyPI
+    default: "https://github.com/runpod-workers/sdk-runtime/archive/14f70227008c1ec317e3fe1865a4688b14f5d432.tar.gz"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install runpod-python
+      shell: bash
+      env:
+        RUNPOD_VERSION: ${{ inputs.runpod-version }}
+      run: python -m pip install --quiet "runpod==${RUNPOD_VERSION}"
+
+    - name: Run tests on a temporary endpoint
+      shell: bash
+      env:
+        RUNPOD_API_KEY: ${{ inputs.runpod-api-key }}
+        RP_TEST_IMAGE: ${{ inputs.image }}
+        RP_TEST_FILE: ${{ inputs.tests-file }}
+        RP_TEST_HANDLER: ${{ inputs.handler }}
+        RP_TEST_GPU: ${{ inputs.gpu }}
+        RP_TEST_STARTUP_S: ${{ inputs.startup-timeout }}
+        # The live endpoint's launcher force-installs these into the image,
+        # so the worker runs the same SDK as the CLI.
+        RUNPOD_PACKAGE_SPEC: runpod==${{ inputs.runpod-version }}
+        RUNPOD_RUNTIME_PACKAGE_SPEC: ${{ inputs.runtime-package-spec }}
+      run: |
+        export RP_TEST_FILE="$(realpath "$RP_TEST_FILE")"
+        export RP_TEST_APP_NAME="$(python -c 'import os, sys; sys.path.insert(0, sys.argv[1]); from cases import app_name; print(app_name(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]))' "$GITHUB_ACTION_PATH")"
+        echo "Flash app: $RP_TEST_APP_NAME"
+        # --once runs main(), deletes the endpoint, and exits non-zero if
+        # main() raised. stdin from /dev/null keeps the session non-interactive.
+        rp flash dev --once "$GITHUB_ACTION_PATH/flash_app.py" < /dev/null
