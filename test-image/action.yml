@@ -14,15 +14,33 @@ inputs:
     required: false
     default: ".runpod/tests.json"
   handler:
-    description: "Path of the handler file inside the image"
+    description: "Path of the handler file inside the image (handler mode)"
     required: false
     default: "/handler.py"
+  start-command:
+    description: >
+      Command that starts the image's HTTP server, e.g. "cd /src && python3 handler.py".
+      Setting it selects server mode, for load-balancer workers.
+    required: false
+    default: ""
+  port:
+    description: "Port the server listens on; passed to it as PORT (server mode)"
+    required: false
+    default: "8000"
+  health-path:
+    description: "Path that returns 200 once the server is ready (server mode)"
+    required: false
+    default: "/ping"
   gpu:
     description: "GPU type; defaults to config.gpuTypeId in the tests file"
     required: false
     default: ""
+  min-cuda:
+    description: "Minimum host CUDA version; defaults to the lowest config.allowedCudaVersions"
+    required: false
+    default: ""
   startup-timeout:
-    description: "Seconds allowed for the first worker to pull the image and start"
+    description: "Seconds allowed for the worker to pull the image and start (and, in server mode, for the server to become healthy)"
     required: false
     default: "900"
   runpod-version:
@@ -54,7 +72,11 @@ runs:
         RP_TEST_IMAGE: ${{ inputs.image }}
         RP_TEST_FILE: ${{ inputs.tests-file }}
         RP_TEST_HANDLER: ${{ inputs.handler }}
+        RP_TEST_START_COMMAND: ${{ inputs.start-command }}
+        RP_TEST_PORT: ${{ inputs.port }}
+        RP_TEST_HEALTH_PATH: ${{ inputs.health-path }}
         RP_TEST_GPU: ${{ inputs.gpu }}
+        RP_TEST_MIN_CUDA: ${{ inputs.min-cuda }}
         RP_TEST_STARTUP_S: ${{ inputs.startup-timeout }}
         # The live endpoint's launcher force-installs these into the image,
         # so the worker runs the same SDK as the CLI.

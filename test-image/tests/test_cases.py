@@ -2,7 +2,15 @@ import json
 
 import pytest
 
-from cases import Case, SuiteError, app_name, check_output, load_suite
+from cases import (
+    Case,
+    SuiteError,
+    app_name,
+    check_http_output,
+    check_output,
+    http_request,
+    load_suite,
+)
 
 
 def write_suite(tmp_path, suite):
@@ -94,3 +102,70 @@ def test_app_name_truncates_long_repo_names_but_keeps_run_ids():
 )
 def test_check_output(result, expected):
     assert check_output(result) == expected
+
+
+def test_load_suite_takes_lowest_allowed_cuda_version(tmp_path):
+    path = write_suite(
+        tmp_path,
+        {
+            "tests": [{"name": "basic", "input": {}}],
+            "config": {"allowedCudaVersions": ["12.7", "12.10", "12.3"]},
+        },
+    )
+
+    assert load_suite(path).min_cuda == "12.3"
+
+
+def test_load_suite_without_cuda_versions_sets_no_minimum(tmp_path):
+    path = write_suite(tmp_path, {"tests": [{"name": "basic", "input": {}}]})
+
+    assert load_suite(path).min_cuda is None
+
+
+def test_http_request_reads_method_path_body_and_expected_status():
+    request = http_request(
+        {
+            "method": "post",
+            "path": "/v1/completions",
+            "body": {"prompt": "hi"},
+            "status": 201,
+        }
+    )
+
+    assert request == {
+        "method": "POST",
+        "path": "/v1/completions",
+        "body": {"prompt": "hi"},
+        "status": 201,
+    }
+
+
+def test_http_request_defaults_to_get_and_200():
+    assert http_request({"path": "/ping"}) == {
+        "method": "GET",
+        "path": "/ping",
+        "body": None,
+        "status": 200,
+    }
+
+
+def test_http_request_requires_an_absolute_path():
+    with pytest.raises(SuiteError, match="path"):
+        http_request({"method": "GET"})
+    with pytest.raises(SuiteError, match="path"):
+        http_request({"path": "v1/completions"})
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        ({"output": {"status": 200, "body": {"choices": []}}}, None),
+        (
+            {"output": {"status": 500, "body": {"detail": "boom"}}},
+            "expected HTTP 200, got 500: {'detail': 'boom'}",
+        ),
+        ({"output": None}, "server returned no response"),
+    ],
+)
+def test_check_http_output(result, expected):
+    assert check_http_output(result, 200) == expected

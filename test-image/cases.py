@@ -4,9 +4,14 @@ Reads the Hub test format (`.runpod/tests.json`):
 
     {"tests": [{"name": "basic", "input": {...}, "timeout": 10000}],
      "config": {"gpuTypeId": "NVIDIA GeForce RTX 4090",
+                "allowedCudaVersions": ["12.8", "13.0"],
                 "env": [{"key": "K", "value": "V"}]}}
 
-`timeout` is in milliseconds, as on the Hub.
+`timeout` is in milliseconds, as on the Hub. The lowest entry of
+`allowedCudaVersions` becomes the endpoint's minimum CUDA version.
+
+In server mode each test's input is an HTTP request instead of a job input:
+    {"method": "POST", "path": "/v1/completions", "body": {...}, "status": 200}
 """
 
 import json
@@ -38,6 +43,7 @@ class Suite:
     cases: List[Case]
     gpu: Optional[str] = None
     env: Dict[str, str] = field(default_factory=dict)
+    min_cuda: Optional[str] = None
 
 
 def load_suite(path: Path) -> Suite:
@@ -60,7 +66,33 @@ def load_suite(path: Path) -> Suite:
 
     config = data.get("config") or {}
     env = {item["key"]: str(item["value"]) for item in config.get("env") or []}
-    return Suite(cases=cases, gpu=config.get("gpuTypeId"), env=env)
+    return Suite(
+        cases=cases,
+        gpu=config.get("gpuTypeId"),
+        env=env,
+        min_cuda=_lowest_version(config.get("allowedCudaVersions") or []),
+    )
+
+
+def _lowest_version(versions: List[str]) -> Optional[str]:
+    if not versions:
+        return None
+    return min(versions, key=lambda v: tuple(int(part) for part in v.split(".")))
+
+
+def http_request(case_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a server-mode test input into method, path, body and expected status."""
+    path = case_input.get("path")
+    if not isinstance(path, str) or not path.startswith("/"):
+        raise SuiteError(
+            f"server-mode test input needs an absolute 'path', got {path!r}"
+        )
+    return {
+        "method": str(case_input.get("method", "GET")).upper(),
+        "path": path,
+        "body": case_input.get("body"),
+        "status": int(case_input.get("status", 200)),
+    }
 
 
 def app_name(repository: str, run_id: str, attempt: str) -> str:
@@ -79,4 +111,16 @@ def check_output(result: Dict[str, Any]) -> Optional[str]:
         return "handler returned no output"
     if isinstance(output, dict) and "error" in output:
         return f"handler returned an error: {output['error']}"
+    return None
+
+
+def check_http_output(result: Dict[str, Any], expected_status: int) -> Optional[str]:
+    """Return why a server response fails the test, or None if it passes."""
+    output = result.get("output")
+    if output is None:
+        return "server returned no response"
+    if output["status"] != expected_status:
+        return (
+            f"expected HTTP {expected_status}, got {output['status']}: {output['body']}"
+        )
     return None
