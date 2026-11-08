@@ -27,6 +27,7 @@ Configured through environment variables (set by action.yml):
 """
 
 import asyncio
+import concurrent.futures
 import inspect
 import json
 import os
@@ -106,6 +107,21 @@ app = runpod.App(APP_NAME)
 # ---- worker side: handler mode ---------------------------------------------
 
 
+def _run_coroutine(coro):
+    """Run a coroutine to completion from sync code, even inside a running loop.
+
+    The Flash runtime calls run_case from inside its event loop, where
+    asyncio.run() refuses to start, so the coroutine gets its own loop on a
+    separate thread.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
 async def _drain(result):
     if inspect.isawaitable(result):
         result = await result
@@ -136,7 +152,7 @@ def _run_handler(handler_path: str, job: dict) -> dict:
         if inspect.isgenerator(result):
             result = list(result)
         elif inspect.isawaitable(result) or inspect.isasyncgen(result):
-            result = asyncio.run(_drain(result))
+            result = _run_coroutine(_drain(result))
         return {"output": result}
     finally:
         runpod.serverless.start = original_start

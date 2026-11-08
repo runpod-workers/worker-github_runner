@@ -362,3 +362,25 @@ def test_server_mode_times_out_when_never_healthy(flash_app, tmp_path):
         if os.path.exists(pid_file):
             os.killpg(int(open(pid_file).read()), signal.SIGTERM)
             os.remove(pid_file)
+
+
+def test_awaits_async_handler_when_called_inside_a_running_loop(flash_app, tmp_path):
+    # The Flash runtime calls run_case from inside its own event loop.
+    import asyncio
+
+    handler = write_handler(
+        tmp_path,
+        """
+        import runpod
+
+        async def handler(job):
+            return "inside loop ok"
+
+        runpod.serverless.start({"handler": handler})
+        """,
+    )
+
+    async def runtime():
+        return flash_app.run_case.local(handler_task(handler, {"id": "x", "input": {}}))
+
+    assert asyncio.run(runtime()) == {"output": "inside loop ok"}
