@@ -65,13 +65,27 @@ def load_suite(path: Path) -> Suite:
         cases.append(Case(name=raw["name"], input=raw["input"], timeout_s=timeout_s))
 
     config = data.get("config") or {}
-    env = {item["key"]: str(item["value"]) for item in config.get("env") or []}
+    env = _parse_env(path, config.get("env") or [])
     return Suite(
         cases=cases,
         gpu=config.get("gpuTypeId"),
         env=env,
         min_cuda=_lowest_version(config.get("allowedCudaVersions") or []),
     )
+
+
+def _parse_env(path: Path, entries: Any) -> Dict[str, str]:
+    """Read config.env, a list of {"key": ..., "value": ...} entries."""
+    if not isinstance(entries, list):
+        raise SuiteError(f"{path}: config.env must be a list of key/value entries")
+    env = {}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict) or "key" not in entry or "value" not in entry:
+            raise SuiteError(
+                f"{path}: config.env entry #{index} needs both 'key' and 'value'"
+            )
+        env[entry["key"]] = str(entry["value"])
+    return env
 
 
 def _lowest_version(versions: List[str]) -> Optional[str]:

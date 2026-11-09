@@ -2,6 +2,7 @@ import importlib
 import json
 import sys
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -277,7 +278,7 @@ def server(tmp_path, monkeypatch):
     pid_file = f"/tmp/rp-test-server-{port}.pid"
     if os.path.exists(pid_file):
         try:
-            os.killpg(int(open(pid_file).read()), signal.SIGTERM)
+            os.killpg(int(Path(pid_file).read_text()), signal.SIGTERM)
         except ProcessLookupError:
             pass
         os.remove(pid_file)
@@ -322,6 +323,16 @@ def test_server_mode_reuses_a_running_server(flash_app, server):
     assert starts.read_text().count("start") == 1
 
 
+def test_server_mode_starts_a_server_over_an_unreadable_pid_file(flash_app, server):
+    spec, starts = server
+    Path(f"/tmp/rp-test-server-{spec['port']}.pid").write_text("")
+
+    result = flash_app.run_case.local(server_task(spec))
+
+    assert result["output"]["status"] == 200
+    assert starts.read_text().count("start") == 1
+
+
 def test_server_mode_reports_a_crashed_server_with_its_log(flash_app, tmp_path):
     crash = tmp_path / "crash.py"
     crash.write_text(
@@ -360,7 +371,7 @@ def test_server_mode_times_out_when_never_healthy(flash_app, tmp_path):
 
         pid_file = f"/tmp/rp-test-server-{port}.pid"
         if os.path.exists(pid_file):
-            os.killpg(int(open(pid_file).read()), signal.SIGTERM)
+            os.killpg(int(Path(pid_file).read_text()), signal.SIGTERM)
             os.remove(pid_file)
 
 

@@ -70,6 +70,22 @@ def test_load_suite_rejects_invalid_suites(tmp_path, suite):
         load_suite(write_suite(tmp_path, suite))
 
 
+@pytest.mark.parametrize(
+    "env",
+    [
+        [{"key": "K"}],
+        [{"value": "V"}],
+        ["K=V"],
+        {"K": "V"},
+    ],
+)
+def test_load_suite_rejects_malformed_config_env(tmp_path, env):
+    suite = {"tests": [{"name": "t", "input": {}}], "config": {"env": env}}
+
+    with pytest.raises(SuiteError, match="config.env"):
+        load_suite(write_suite(tmp_path, suite))
+
+
 def test_load_suite_rejects_missing_file(tmp_path):
     with pytest.raises(SuiteError, match="not found"):
         load_suite(tmp_path / "absent.json")

@@ -31,7 +31,7 @@ Build and push the image first, then:
 | `runpod-api-key` | (required) | API key used to create and delete the endpoint |
 | `tests-file` | `.runpod/tests.json` | Hub-format tests file in your checkout |
 | `handler` | `/handler.py` | Path of the handler file inside the image (handler mode) |
-| `start-command` | (none) | Command that starts your HTTP server; selects server mode |
+| `start-command` | (none) | Command that starts your HTTP server; selects server mode. Runs on the worker through `sh -c` |
 | `port` | `8000` | Port your server listens on, passed to it as `PORT` (server mode) |
 | `health-path` | `/ping` | Path that returns 200 once the server is ready (server mode) |
 | `gpu` | `config.gpuTypeId` from the tests file | GPU type for the endpoint |

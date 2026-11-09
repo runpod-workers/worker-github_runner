@@ -20,7 +20,8 @@ inputs:
   start-command:
     description: >
       Command that starts the image's HTTP server, e.g. "cd /src && python3 handler.py".
-      Setting it selects server mode, for load-balancer workers.
+      Setting it selects server mode, for load-balancer workers. It runs on the
+      worker through `sh -c`, so shell syntax such as `cd` and `&&` works.
     required: false
     default: ""
   port:

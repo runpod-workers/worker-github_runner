@@ -39,6 +39,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Optional
 
 import runpod
 
@@ -201,10 +202,22 @@ def _health_status(port: int, path: str):
         return None
 
 
+def _read_pid(pid_file: str) -> Optional[int]:
+    """Return the recorded server pid, or None when none is recorded.
+
+    An empty or corrupt file (a worker that died mid-write) counts as no
+    server, so the next case starts a fresh one instead of failing forever.
+    """
+    try:
+        return int(Path(pid_file).read_text())
+    except (FileNotFoundError, ValueError):
+        return None
+
+
 def _ensure_server(server: dict) -> None:
     port = server["port"]
     pid_file, log_file = _server_files(port)
-    pid = int(Path(pid_file).read_text()) if os.path.exists(pid_file) else None
+    pid = _read_pid(pid_file)
     if pid is None or _exit_code(pid) is not None:
         with open(log_file, "w") as log:
             process = subprocess.Popen(
