@@ -59,6 +59,10 @@ This repository hosts the code for deploying a GitHub Actions worker on the Runp
 
 5. Deploy your worker to the Runpod platform.
 
+## Testing worker images in CI
+
+The [`test-image`](./test-image) action runs a worker image's `.runpod/tests.json` cases on a temporary endpoint and deletes it afterwards. See [docs/usage.md](./docs/usage.md).
+
 ## Documentation
 
 For more details on how this GitHub Actions worker functions and how to integrate it into your CI/CD pipeline, please refer to the [Documentation](./docs).

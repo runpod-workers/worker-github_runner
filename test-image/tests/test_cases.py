@@ -1,0 +1,187 @@
+import json
+
+import pytest
+
+from cases import (
+    Case,
+    SuiteError,
+    app_name,
+    check_http_output,
+    check_output,
+    http_request,
+    load_suite,
+)
+
+
+def write_suite(tmp_path, suite):
+    path = tmp_path / "tests.json"
+    path.write_text(json.dumps(suite))
+    return path
+
+
+def test_load_suite_reads_hub_format(tmp_path):
+    path = write_suite(
+        tmp_path,
+        {
+            "tests": [{"name": "basic", "input": {"audio": "a.wav"}, "timeout": 10000}],
+            "config": {"gpuTypeId": "NVIDIA GeForce RTX 4090"},
+        },
+    )
+
+    suite = load_suite(path)
+
+    assert suite.cases == [Case(name="basic", input={"audio": "a.wav"}, timeout_s=10.0)]
+    assert suite.gpu == "NVIDIA GeForce RTX 4090"
+
+
+def test_load_suite_reads_config_env_as_dict(tmp_path):
+    path = write_suite(
+        tmp_path,
+        {
+            "tests": [{"name": "basic", "input": {}}],
+            "config": {"env": [{"key": "MODEL", "value": "turbo"}]},
+        },
+    )
+
+    assert load_suite(path).env == {"MODEL": "turbo"}
+
+
+def test_load_suite_defaults_timeout_and_missing_config(tmp_path):
+    path = write_suite(tmp_path, {"tests": [{"name": "basic", "input": {}}]})
+
+    suite = load_suite(path)
+
+    assert suite.cases[0].timeout_s == 300.0
+    assert suite.gpu is None
+    assert suite.env == {}
+
+
+@pytest.mark.parametrize(
+    "suite",
+    [
+        {"tests": []},
+        {},
+        {"tests": [{"input": {}}]},
+        {"tests": [{"name": "no-input"}]},
+    ],
+)
+def test_load_suite_rejects_invalid_suites(tmp_path, suite):
+    with pytest.raises(SuiteError):
+        load_suite(write_suite(tmp_path, suite))
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        [{"key": "K"}],
+        [{"value": "V"}],
+        ["K=V"],
+        {"K": "V"},
+    ],
+)
+def test_load_suite_rejects_malformed_config_env(tmp_path, env):
+    suite = {"tests": [{"name": "t", "input": {}}], "config": {"env": env}}
+
+    with pytest.raises(SuiteError, match="config.env"):
+        load_suite(write_suite(tmp_path, suite))
+
+
+def test_load_suite_rejects_missing_file(tmp_path):
+    with pytest.raises(SuiteError, match="not found"):
+        load_suite(tmp_path / "absent.json")
+
+
+def test_app_name_is_unique_per_run_attempt_and_api_safe():
+    name = app_name("runpod-workers/worker-faster_whisper", "42459297624", "2")
+
+    assert name == "ci-worker-faster-whisper-42459297624-2"
+
+
+def test_app_name_truncates_long_repo_names_but_keeps_run_ids():
+    name = app_name("org/" + "x" * 80, "123", "1")
+
+    assert name.endswith("-123-1")
+    assert len(name) <= 48
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        ({"output": {"text": "four score"}}, None),
+        ({"output": [1, 2]}, None),
+        (
+            {"output": {"error": "model missing"}},
+            "handler returned an error: model missing",
+        ),
+        ({"output": None}, "handler returned no output"),
+    ],
+)
+def test_check_output(result, expected):
+    assert check_output(result) == expected
+
+
+def test_load_suite_takes_lowest_allowed_cuda_version(tmp_path):
+    path = write_suite(
+        tmp_path,
+        {
+            "tests": [{"name": "basic", "input": {}}],
+            "config": {"allowedCudaVersions": ["12.7", "12.10", "12.3"]},
+        },
+    )
+
+    assert load_suite(path).min_cuda == "12.3"
+
+
+def test_load_suite_without_cuda_versions_sets_no_minimum(tmp_path):
+    path = write_suite(tmp_path, {"tests": [{"name": "basic", "input": {}}]})
+
+    assert load_suite(path).min_cuda is None
+
+
+def test_http_request_reads_method_path_body_and_expected_status():
+    request = http_request(
+        {
+            "method": "post",
+            "path": "/v1/completions",
+            "body": {"prompt": "hi"},
+            "status": 201,
+        }
+    )
+
+    assert request == {
+        "method": "POST",
+        "path": "/v1/completions",
+        "body": {"prompt": "hi"},
+        "status": 201,
+    }
+
+
+def test_http_request_defaults_to_get_and_200():
+    assert http_request({"path": "/ping"}) == {
+        "method": "GET",
+        "path": "/ping",
+        "body": None,
+        "status": 200,
+    }
+
+
+def test_http_request_requires_an_absolute_path():
+    with pytest.raises(SuiteError, match="path"):
+        http_request({"method": "GET"})
+    with pytest.raises(SuiteError, match="path"):
+        http_request({"path": "v1/completions"})
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        ({"output": {"status": 200, "body": {"choices": []}}}, None),
+        (
+            {"output": {"status": 500, "body": {"detail": "boom"}}},
+            "expected HTTP 200, got 500: {'detail': 'boom'}",
+        ),
+        ({"output": None}, "server returned no response"),
+    ],
+)
+def test_check_http_output(result, expected):
+    assert check_http_output(result, 200) == expected
